@@ -4,7 +4,7 @@ version:            1.3.3.7
 synopsis:           Rainbow ASCII art and MOTD generator
 description:        A simple suite for generating colorful ASCII art
 homepage:           https://github.com/x-stp/rainbow
-license:            OtherLicense
+license:            XFree86-1.1
 author:             noreply@vanderstap.info
 maintainer:         noreply@vanderstap.info
 build-type:         Simple

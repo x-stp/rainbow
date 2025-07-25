@@ -1,0 +1,22 @@
+cabal-version:      3.12
+name:               rainbow
+version:            1.3.3.7
+synopsis:           Rainbow ASCII art and MOTD generator
+description:        A simple suite for generating colorful ASCII art
+homepage:           https://github.com/x-stp/rainbow
+license:            OtherLicense
+author:             noreply@vanderstap.info
+maintainer:         noreply@vanderstap.info
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+
+common warnings
+    ghc-options: -Wall
+
+executable rainbow
+    import:           warnings
+    main-is:          Main.hs
+    build-depends:    base ^>=4.18.3.0
+    hs-source-dirs:   app
+    default-language: Haskell2010
+    ghc-options:      -O2 -Wall

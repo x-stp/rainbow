@@ -172,19 +172,36 @@ main = do
         ("--text":text:_) -> processText (Just text)
         text -> processText (Just $ unwords text)
 
+validateInput :: String -> Either String String
+validateInput input
+    | length input > 1024 = Left "Input too long (max 1024 characters)"
+    | any (\c -> ord c < 32 && c /= '\t' && c /= '\n') input = Left "Invalid control characters detected"
+    | otherwise = Right $ take 1024 $ filter isValidChar input
+  where
+    isValidChar c = isPrint c || c == ' ' || c == '\t' || c == '\n'
+
 processText :: Maybe String -> IO ()
 processText mtext = do
     putStr "Lightning Stick Text Colorizer\n\n"
     hFlush stdout
     
-    input <- case mtext of
+    rawInput <- case mtext of
         Nothing -> do
             putStr "Enter text: "
             hFlush stdout
             getLine
         Just t -> pure t
     
-    putStrLn "Processing...\n"
+    input <- case validateInput rawInput of
+        Left err -> do
+            putStrLn $ "Validation failed: " ++ err
+            pure ""
+        Right validated -> pure validated
+    
+    if null input
+        then putStrLn "No valid input provided."
+        else do
+            putStrLn "Processing...\n"
     
     let pipeline = Initialize input
         config = Config 0xC000_0082 3.14159 input
@@ -228,8 +245,10 @@ cyclicColorize _ seed text =
     in zipWith (\c i -> genColor i c) text (iterate nextCyclic iter) >>= id
   where
     genColor it c = 
-        let code = fromIntegral (iter_current it) `mod` 216 + 16
-        in "\ESC[38;5;" ++ show code ++ ";48;5;233m" ++ [c] ++ "\ESC[0m"
+        let rawCode = fromIntegral (iter_current it) `mod` 216
+            code = max 16 $ min 231 $ rawCode + 16  
+            ansi = safeAnsiColor code 233
+        in ansi ++ [c] ++ "\ESC[0m"
     
     nextCyclic it = it { iter_current = modMul (iter_current it) (iter_generator it) (iter_prime it) }
 
@@ -300,15 +319,30 @@ makeBanner content =
         , footer1Line
         ]
 
+safeAnsiColor :: Int -> Int -> String
+safeAnsiColor fg bg
+    | fg >= 0 && fg <= 255 && bg >= 0 && bg <= 255 = 
+        "\ESC[38;5;" ++ show fg ++ ";48;5;" ++ show bg ++ "m"
+    | otherwise = ""
+
+safeColorCalc :: Int -> Int
+safeColorCalc n
+    | n < 0 = 16
+    | n > 10000 = 231  -- Cap at reasonable value
+    | otherwise = 
+        let phase = fromIntegral (n `mod` 1000) * 0.08
+            r = max 0 $ min 255 $ round (128 + 127 * sin phase)
+            g = max 0 $ min 255 $ round (128 + 127 * sin (phase + 2.0944))
+            b = max 0 $ min 255 $ round (128 + 127 * sin (phase + 4.1888))
+            code = 16 + 36 * (r `quot` 51) + 6 * (g `quot` 51) + (b `quot` 51)
+        in max 16 $ min 231 code
+
 colorize :: Int -> String -> String
 colorize !_ [] = []
 colorize !n (c:cs) = 
-    let !phase = fromIntegral n * 0.08
-        !r = round (128 + 127 * sin phase) :: Int
-        !g = round (128 + 127 * sin (phase + 2.0944)) :: Int
-        !b = round (128 + 127 * sin (phase + 4.1888)) :: Int
-        !code = 16 + 36 * ((r .&. 0xFF) `quot` 51) + 6 * ((g .&. 0xFF) `quot` 51) + ((b .&. 0xFF) `quot` 51)
-    in "\ESC[38;5;" ++ show code ++ ";48;5;233m" ++ [c] ++ "\ESC[0m" ++ colorize (n+1) cs
+    let !code = safeColorCalc n
+        !ansi = safeAnsiColor code 233
+    in ansi ++ [c] ++ "\ESC[0m" ++ colorize (n+1) cs
 
 class Transformable a where
     transform' :: a -> a
